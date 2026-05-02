@@ -1,6 +1,6 @@
 import type { AgentTool, AgentToolResult } from '@mariozechner/pi-agent-core';
 import { Type } from '@mariozechner/pi-ai';
-import type { Role, SessionEnv } from './types.ts';
+import type { Role, SearchProvider, SessionEnv } from './types.ts';
 
 const MAX_READ_LINES = 2000;
 const MAX_READ_BYTES = 50 * 1024;
@@ -16,6 +16,7 @@ export const BUILTIN_TOOL_NAMES = new Set([
 	'grep',
 	'glob',
 	'task',
+	'search',
 ]);
 
 export interface TaskToolParams {
@@ -39,6 +40,8 @@ export interface CreateToolsOptions {
 		signal?: AbortSignal,
 	) => Promise<AgentToolResult<TaskToolResultDetails>>;
 	roles?: Record<string, Role>;
+	/** When set, registers the built-in `search` tool backed by this provider. */
+	search?: SearchProvider;
 }
 
 export function createTools(env: SessionEnv, options?: CreateToolsOptions): AgentTool<any>[] {
@@ -51,6 +54,7 @@ export function createTools(env: SessionEnv, options?: CreateToolsOptions): Agen
 		createGlobTool(env),
 	];
 	if (options?.task) tools.push(createTaskTool(options.task, options.roles ?? {}));
+	if (options?.search) tools.push(createSearchTool(options.search));
 	return tools;
 }
 
@@ -255,6 +259,34 @@ function createTaskTool(
 		async execute(_toolCallId, params: TaskToolParams, signal?) {
 			throwIfAborted(signal);
 			return runTask(params, signal);
+		},
+	};
+}
+
+function createSearchTool(provider: SearchProvider): AgentTool<any> {
+	const description =
+		provider.description ??
+		`Search via the "${provider.name}" provider. Use for fresh, real-world information ` +
+			`(prices, news, public data, domain knowledge) the agent does not already have.`;
+
+	return {
+		name: 'search',
+		label: 'Search',
+		description,
+		parameters: Type.Object({
+			query: Type.String({ description: 'Natural-language search query' }),
+		}),
+		async execute(_toolCallId, params: { query: string }, signal?) {
+			throwIfAborted(signal);
+			const result = await provider.search(params.query, signal);
+			return {
+				content: [{ type: 'text', text: result.text }],
+				details: {
+					provider: provider.name,
+					query: params.query,
+					data: result.data,
+				},
+			};
 		},
 	};
 }

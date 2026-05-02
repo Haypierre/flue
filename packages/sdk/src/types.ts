@@ -59,6 +59,43 @@ export interface ToolDef<TParams extends ToolParameters = ToolParameters> {
 	execute: (args: Record<string, any>, signal?: AbortSignal) => Promise<string>;
 }
 
+// ─── Search Provider ────────────────────────────────────────────────────────
+
+/**
+ * A pluggable search backend. Configured via `init({ search })` to expose a
+ * built-in `search` tool to the LLM, alongside `read | write | edit | bash |
+ * grep | glob | task`. Implementations: `kirha()` from `@flue/connectors/kirha`,
+ * and any user-built provider matching this interface.
+ *
+ * Search sits at the same level as `sandbox` and `model` in `init()`: it is the
+ * agent's connection to fresh, real-world data. MCP remains the right tool for
+ * bespoke per-vendor APIs; this slot is for the universal "give the agent a way
+ * to look things up" capability.
+ */
+export interface SearchProvider {
+	/** Identifier used in tool result `details` and for log/event correlation. */
+	readonly name: string;
+	/**
+	 * Tool description shown to the LLM. Override to communicate what the
+	 * provider is good at (e.g. domain coverage). If omitted, a generic
+	 * description is used.
+	 */
+	readonly description?: string;
+	/** Run a search. Throwing rejects the tool call; the LLM sees an error result. */
+	search(query: string, signal?: AbortSignal): Promise<SearchResult>;
+}
+
+export interface SearchResult {
+	/** Human-readable answer the LLM consumes via the `search` tool. */
+	text: string;
+	/**
+	 * Optional structured payload (e.g. raw provider data). Not shown to the LLM
+	 * directly — surfaced back through the tool's `details` so user code can
+	 * inspect it via the event stream.
+	 */
+	data?: unknown;
+}
+
 // ─── File Stat ──────────────────────────────────────────────────────────────
 
 export interface FileStat {
@@ -199,6 +236,13 @@ export interface AgentInit {
 	 * call.
 	 */
 	commands?: Command[];
+
+	/**
+	 * Pluggable search backend. When set, Flue exposes a built-in `search` tool
+	 * to the LLM. Per-call `search` on prompt()/skill()/task() overrides this
+	 * for the duration of the call.
+	 */
+	search?: SearchProvider;
 }
 
 // ─── Flue Agent (returned by init()) ────────────────────────────────────────
@@ -323,6 +367,8 @@ export interface PromptOptions<S extends v.GenericSchema | undefined = undefined
 	role?: string;
 	/** e.g., 'anthropic/claude-sonnet-4-20250514' */
 	model?: string;
+	/** Override the agent-wide `search` provider for this call. */
+	search?: SearchProvider;
 }
 
 export interface SkillOptions<S extends v.GenericSchema | undefined = undefined> {
@@ -333,6 +379,7 @@ export interface SkillOptions<S extends v.GenericSchema | undefined = undefined>
 	tools?: ToolDef[];
 	role?: string;
 	model?: string;
+	search?: SearchProvider;
 }
 
 export interface TaskOptions<S extends v.GenericSchema | undefined = undefined> {
@@ -343,6 +390,7 @@ export interface TaskOptions<S extends v.GenericSchema | undefined = undefined> 
 	model?: string;
 	/** Working directory for the detached task session. Defaults to the parent session cwd. */
 	cwd?: string;
+	search?: SearchProvider;
 }
 
 export interface ShellOptions {

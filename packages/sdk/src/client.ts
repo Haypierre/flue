@@ -90,6 +90,7 @@ export function createFlueContext(config: FlueContextConfig): FlueContextInterna
 					currentEventCallback,
 					options?.commands,
 					options?.tools,
+					options?.search,
 				);
 			} catch (error) {
 				initializedAgentIds.delete(id);
@@ -198,4 +199,6 @@ export type {
 	ShellResult,
 	ToolDef,
 	ToolParameters,
+	SearchProvider,
+	SearchResult,
 } from './types.ts';
