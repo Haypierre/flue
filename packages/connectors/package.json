@@ -7,6 +7,10 @@
 		"./daytona": {
 			"types": "./dist/daytona.d.mts",
 			"import": "./dist/daytona.mjs"
+		},
+		"./kirha": {
+			"types": "./dist/kirha.d.mts",
+			"import": "./dist/kirha.mjs"
 		}
 	},
 	"files": [
@@ -21,15 +25,20 @@
 		"@flue/sdk": "workspace:*"
 	},
 	"peerDependencies": {
-		"@daytona/sdk": "*"
+		"@daytona/sdk": "*",
+		"kirha": "*"
 	},
 	"peerDependenciesMeta": {
 		"@daytona/sdk": {
+			"optional": true
+		},
+		"kirha": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@daytona/sdk": "*",
+		"kirha": "*",
 		"tsdown": "^0.20.3"
 	}
 }
