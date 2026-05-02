@@ -31,6 +31,8 @@ export type {
 	AgentInfo,
 	ToolDef,
 	ToolParameters,
+	SearchProvider,
+	SearchResult,
 } from './types.ts';
 
 export { build, resolveWorkspaceFromCwd } from './build.ts';

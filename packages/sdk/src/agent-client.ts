@@ -10,6 +10,7 @@ import type {
 	FlueSessions,
 	FlueSession,
 	FlueEventCallback,
+	SearchProvider,
 	SessionData,
 	SessionEnv,
 	SessionOptions,
@@ -41,6 +42,7 @@ export class AgentClient implements FlueAgent {
 		private eventCallback?: FlueEventCallback,
 		private agentCommands: Command[] = [],
 		private agentTools: ToolDef[] = [],
+		private agentSearch?: SearchProvider,
 	) {}
 
 	async session(id?: string, options?: SessionOptions): Promise<FlueSession> {
@@ -116,6 +118,7 @@ export class AgentClient implements FlueAgent {
 			onAgentEvent: this.eventCallback,
 			agentCommands: this.agentCommands,
 			agentTools: this.agentTools,
+			agentSearch: this.agentSearch,
 			sessionRole: options?.role,
 			taskDepth: 0,
 			createTaskSession: (taskOptions) => this.createTaskSession(taskOptions),
@@ -181,6 +184,7 @@ export class AgentClient implements FlueAgent {
 			onAgentEvent: eventCallback,
 			agentCommands: options.commands,
 			agentTools: this.agentTools,
+			agentSearch: this.agentSearch,
 			sessionRole: options.role,
 			taskDepth: options.depth,
 			createTaskSession: (childOptions) => this.createTaskSession(childOptions),

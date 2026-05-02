@@ -41,6 +41,7 @@ import type {
 	FlueSession,
 	PromptOptions,
 	PromptResponse,
+	SearchProvider,
 	SessionData,
 	SessionEnv,
 	SessionStore,
@@ -62,6 +63,7 @@ export interface CreateTaskSessionOptions {
 	role?: string;
 	commands: Command[];
 	depth: number;
+	search?: SearchProvider;
 }
 
 export type CreateTaskSession = (options: CreateTaskSessionOptions) => Promise<Session>;
@@ -76,6 +78,7 @@ interface SessionInitOptions {
 	onAgentEvent?: FlueEventCallback;
 	agentCommands?: Command[];
 	agentTools?: ToolDef[];
+	agentSearch?: SearchProvider;
 	sessionRole?: string;
 	taskDepth?: number;
 	createTaskSession?: CreateTaskSession;
@@ -87,6 +90,7 @@ interface RuntimeScopeOptions {
 	tools: ToolDef[];
 	role?: string;
 	model?: string;
+	search?: SearchProvider;
 	callSite: string;
 }
 
@@ -141,6 +145,7 @@ export class Session implements FlueSession {
 	private eventCallback: FlueEventCallback | undefined;
 	private agentCommands: Command[];
 	private agentTools: ToolDef[];
+	private agentSearch: SearchProvider | undefined;
 	private deleted = false;
 	private activeOperation: string | undefined;
 	private activeTasks = new Set<Session>();
@@ -157,6 +162,7 @@ export class Session implements FlueSession {
 		this.store = options.store;
 		this.agentCommands = options.agentCommands ?? [];
 		this.agentTools = options.agentTools ?? [];
+		this.agentSearch = options.agentSearch;
 		this.sessionRole = options.sessionRole;
 		this.taskDepth = options.taskDepth ?? 0;
 		this.createTaskSession = options.createTaskSession;
@@ -180,7 +186,14 @@ export class Session implements FlueSession {
 		assertRoleExists(this.config.roles, this.sessionRole);
 
 		const tools = [
-			...this.createBuiltinTools(this.env, this.agentCommands, []),
+			...this.createBuiltinTools(
+				this.env,
+				this.agentCommands,
+				[],
+				undefined,
+				undefined,
+				this.agentSearch,
+			),
 			...this.createCustomTools(this.agentTools),
 		];
 
@@ -254,6 +267,7 @@ export class Session implements FlueSession {
 					tools: options?.tools ?? [],
 					role,
 					model: options?.model,
+					search: options?.search,
 					callSite: 'this prompt() call',
 				},
 				async () => {
@@ -316,6 +330,7 @@ export class Session implements FlueSession {
 					tools: options?.tools ?? [],
 					role,
 					model: options?.model,
+					search: options?.search,
 					callSite: `this skill("${name}") call`,
 				},
 				async () => {
@@ -485,10 +500,13 @@ export class Session implements FlueSession {
 		tools: ToolDef[],
 		role?: string,
 		model?: string,
+		search?: SearchProvider,
 	): AgentTool<any>[] {
 		return createTools(env, {
 			roles: this.config.roles,
-			task: (params, signal) => this.runTaskForTool(params, commands, tools, role, model, signal),
+			task: (params, signal) =>
+				this.runTaskForTool(params, commands, tools, role, model, search, signal),
+			search,
 		});
 	}
 
@@ -508,6 +526,7 @@ export class Session implements FlueSession {
 			options.callSite,
 		);
 		this.harness.state.systemPrompt = this.buildSystemPrompt(options.role);
+		const effectiveSearch = options.search ?? this.agentSearch;
 		this.harness.state.tools = [
 			...this.createBuiltinTools(
 				scopedEnv,
@@ -515,6 +534,7 @@ export class Session implements FlueSession {
 				options.tools,
 				options.role,
 				options.model,
+				effectiveSearch,
 			),
 			...customTools,
 		];
@@ -535,6 +555,7 @@ export class Session implements FlueSession {
 		tools: ToolDef[],
 		inheritedRole: string | undefined,
 		inheritedModel: string | undefined,
+		inheritedSearch: SearchProvider | undefined,
 		signal?: AbortSignal,
 	): Promise<AgentToolResult<TaskToolResultDetails>> {
 		const result = await this.runTask(
@@ -545,6 +566,7 @@ export class Session implements FlueSession {
 				cwd: params.cwd,
 				commands,
 				tools,
+				search: inheritedSearch,
 			},
 			signal,
 		);
@@ -616,6 +638,7 @@ export class Session implements FlueSession {
 			const childOptions: PromptOptions<v.GenericSchema | undefined> = {
 				model: options?.model ?? (roleModel ? undefined : options?.inheritedModel),
 				tools: options?.tools,
+				search: options?.search,
 			};
 			if (schema) childOptions.result = schema;
 
